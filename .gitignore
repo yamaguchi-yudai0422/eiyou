@@ -1,0 +1,15 @@
+# Static site
+/dist/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 成分表の元データ（Excel）は大きいのでコミットしない。
+# assets/data/foods.csv は生成済みのものをコミットする。
+*.xlsx

@@ -1,0 +1,45 @@
+name: Deploy Static Site to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  # Actions タブから手動でも実行できるようにしておく。
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# デプロイ中に新しい push が来たら古い方を止める。
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assemble static site artifact
+        run: |
+          mkdir -p dist/assets/data
+          cp index.html styles.css app.js manifest.webmanifest sw.js dist/
+          cp assets/icon-*.png dist/assets/
+          cp assets/data/*.csv dist/assets/data/
+          cp assets/data/*.js dist/assets/data/
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

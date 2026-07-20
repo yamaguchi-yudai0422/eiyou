@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#29483c" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <title>栄養計算アプリ</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="./assets/icon-192.png" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <main class="workspace">
+        <section class="panel editor-panel">
+          <div class="editor-meta">
+            <label class="field compact">
+              <span>日付</span>
+              <span class="date-navigation">
+                <button id="previousDateButton" class="date-step-button" type="button" aria-label="前日">
+                  ‹
+                </button>
+                <input id="dateInput" type="date" />
+                <button id="nextDateButton" class="date-step-button" type="button" aria-label="翌日">
+                  ›
+                </button>
+              </span>
+            </label>
+
+            <div class="field compact">
+              <span>食事</span>
+              <div id="mealTabs" class="meal-tabs">
+                <button class="meal-tab is-active" type="button" data-meal="breakfast">朝</button>
+                <button class="meal-tab" type="button" data-meal="lunch">昼</button>
+                <button class="meal-tab" type="button" data-meal="dinner">夜</button>
+              </div>
+            </div>
+          </div>
+
+          <p id="actionMessage" class="action-message" aria-live="polite"></p>
+
+          <div class="dish-editor-heading">
+            <div>
+              <span>料理</span>
+              <small>料理名を入力してEnterで次の料理へ</small>
+            </div>
+          </div>
+
+          <div id="dishList" class="dish-list"></div>
+          <p id="dishEmpty" class="empty-state" hidden>
+            料理名を入力してください。
+          </p>
+          <datalist id="foodOptions"></datalist>
+
+          <div id="recipeTools" class="template-tools" hidden>
+            <select id="templateSelect" aria-label="保存レシピ">
+              <option value="">保存レシピを選択</option>
+            </select>
+            <button id="applyTemplateButton" class="secondary-button" type="button">
+              レシピを呼び出す
+            </button>
+            <button id="saveTemplateButton" class="secondary-button" type="button">
+              レシピ保存
+            </button>
+          </div>
+
+        </section>
+
+        <section class="panel summary-panel">
+          <div class="summary-head">
+            <h2 id="summaryTitle">栄養価</h2>
+            <p id="summaryMealMeta" class="summary-meta"></p>
+          </div>
+
+          <div id="nutritionTabs" class="nutrition-tabs" role="tablist" aria-label="栄養価の表示">
+            <button class="nutrition-tab is-active" type="button" data-nutrition-tab="overview">
+              概要
+            </button>
+            <button class="nutrition-tab" type="button" data-nutrition-tab="main">
+              主要
+            </button>
+            <button class="nutrition-tab" type="button" data-nutrition-tab="mineral">
+              ミネラル
+            </button>
+            <button class="nutrition-tab" type="button" data-nutrition-tab="vitamin">
+              ビタミン
+            </button>
+            <button class="nutrition-tab" type="button" data-nutrition-tab="daily">
+              1日
+            </button>
+          </div>
+
+          <section class="nutrition-panel" data-nutrition-panel="overview">
+            <div class="summary-cards">
+              <article class="summary-card">
+                <p class="summary-label">1人前</p>
+                <p id="perServingEnergy" class="summary-value">0 kcal</p>
+                <div id="perServingMainGrid" class="metric-grid"></div>
+              </article>
+              <article class="summary-card">
+                <p class="summary-label">料理全体</p>
+                <p id="totalEnergy" class="summary-value">0 kcal</p>
+                <div id="totalMainGrid" class="metric-grid"></div>
+              </article>
+            </div>
+          </section>
+
+          <section class="nutrition-panel" data-nutrition-panel="main" hidden>
+            <div id="mainTable" class="nutrient-table"></div>
+          </section>
+
+          <section class="nutrition-panel" data-nutrition-panel="mineral" hidden>
+            <div id="mineralTable" class="nutrient-table"></div>
+          </section>
+
+          <section class="nutrition-panel" data-nutrition-panel="vitamin" hidden>
+            <div id="vitaminTable" class="nutrient-table"></div>
+          </section>
+
+          <section class="nutrition-panel" data-nutrition-panel="daily" hidden>
+            <div class="daily-summary-card">
+              <p class="summary-label">朝・昼・夜の1人前合計</p>
+              <p id="dailyEnergy" class="summary-value">0 kcal</p>
+              <div id="dailyMainGrid" class="metric-grid"></div>
+            </div>
+
+            <div class="deficiency-heading">
+              <h3>不足・超過</h3>
+              <span>1日の摂取量と目標値</span>
+            </div>
+            <div id="deficiencyList" class="deficiency-list"></div>
+
+            <section class="food-amount-tool">
+              <div class="food-amount-heading">
+                <div>
+                  <h3>何g食べればいい？</h3>
+                  <p>不足量を食品の量に換算します。</p>
+                </div>
+              </div>
+
+              <div class="food-amount-fields">
+                <label class="field">
+                  <span>欲しい栄養素</span>
+                  <select id="foodAmountNutrient"></select>
+                </label>
+                <label class="field">
+                  <span>必要量</span>
+                  <span class="value-with-unit">
+                    <input id="foodAmountNeeded" type="number" min="0.1" step="0.1" />
+                    <strong id="foodAmountUnit"></strong>
+                  </span>
+                </label>
+                <label class="field">
+                  <span>調理法</span>
+                  <select id="foodAmountMethod"></select>
+                </label>
+              </div>
+
+              <button id="calculateFoodAmountButton" class="calculate-button" type="button">
+                必要な食品量を計算
+              </button>
+              <div id="foodAmountResults" class="food-amount-results"></div>
+              <p class="medical-disclaimer">
+                単純な栄養価換算です。吸収率、摂取上限、持病、服薬などは考慮していません。
+                医療行為や治療目的の助言ではありません。
+              </p>
+            </section>
+
+            <details class="target-settings">
+              <summary>1日の目標値を変更</summary>
+              <p>
+                初期値は仮設定です。必要量は性別・年齢・活動量などで異なります。
+                <a
+                  href="https://www.mhlw.go.jp/stf/seisakunitsuite/bunya/kenkou_iryou/kenkou/eiyou/syokuji_kijyun.html"
+                  target="_blank"
+                  rel="noreferrer"
+                >厚生労働省の基準を確認</a>
+              </p>
+              <div id="targetInputs" class="target-inputs"></div>
+            </details>
+          </section>
+        </section>
+      </main>
+
+      <div class="compat-hidden" aria-hidden="true">
+        <button id="calendarToggle" type="button"></button>
+        <aside id="historyPanel" hidden>
+          <button id="historyClose" type="button"></button>
+          <input id="historyDateInput" type="date" />
+          <div id="historyOverview"></div>
+          <div id="historyMeals"></div>
+        </aside>
+        <button id="saveMealButton" type="button"></button>
+        <button id="clearDraftButton" type="button"></button>
+        <p id="dataStatus">読込中...</p>
+        <input id="searchInput" type="search" />
+        <p id="searchHint"></p>
+        <div id="searchResults"></div>
+      </div>
+    </div>
+
+    <template id="dishTemplate">
+      <article class="dish-card">
+        <div class="dish-name-row">
+          <input
+            class="dish-name-input"
+            type="text"
+            placeholder="料理名を書く"
+            autocomplete="off"
+            aria-label="料理名"
+          />
+          <button class="dish-toggle" type="button" aria-expanded="false" aria-label="材料を開閉">
+            <span class="dish-count">0品</span>
+            <span class="dish-chevron" aria-hidden="true">⌄</span>
+          </button>
+        </div>
+
+        <div class="dish-body" hidden>
+          <label class="field dish-servings-field">
+            <span>この料理の人数</span>
+            <span class="servings-control">
+              <input class="dish-servings-input" type="number" min="1" step="1" value="2" />
+              <strong>人</strong>
+            </span>
+          </label>
+
+          <div class="dish-materials-heading">
+            <strong>材料</strong>
+            <small>選択すると次の入力欄が自動で増えます</small>
+          </div>
+
+          <div class="dish-ingredient-empty empty-state">
+            材料名を入力してください。
+          </div>
+          <div class="ingredient-list"></div>
+
+          <button class="delete-dish-button" type="button">この料理を削除</button>
+        </div>
+      </article>
+    </template>
+
+    <template id="ingredientTemplate">
+      <article class="ingredient-card">
+        <div class="ingredient-summary-row">
+          <button class="ingredient-toggle" type="button" aria-expanded="false">
+            <span>
+              <strong class="ingredient-summary-name"></strong>
+              <small class="ingredient-summary-detail"></small>
+            </span>
+            <span class="ingredient-chevron" aria-hidden="true">⌄</span>
+          </button>
+          <input
+            class="ingredient-quick-input"
+            type="search"
+            list="foodOptions"
+            placeholder="材料名を入力"
+            autocomplete="off"
+          />
+        </div>
+
+        <div class="ingredient-details" hidden>
+          <div class="ingredient-head">
+            <strong>材料の設定</strong>
+            <button class="delete-button" type="button">削除</button>
+          </div>
+          <label class="field ingredient-food-field">
+            <span>食材</span>
+            <input
+              class="food-input"
+              type="search"
+              list="foodOptions"
+              placeholder="例: さば"
+              autocomplete="off"
+            />
+          </label>
+          <p class="method-note"></p>
+          <div class="ingredient-controls">
+            <label class="field compact method-field">
+              <span>調理法</span>
+              <select class="method-select"></select>
+            </label>
+            <label class="field compact">
+              <span>数量</span>
+              <input class="amount-input" type="number" min="0" step="0.1" />
+            </label>
+            <label class="field compact">
+              <span>単位</span>
+              <select class="unit-select"></select>
+            </label>
+            <div class="stat-chip">
+              <span>重量</span>
+              <strong class="grams-value"></strong>
+            </div>
+            <div class="stat-chip">
+              <span>エネルギー</span>
+              <strong class="energy-value"></strong>
+            </div>
+          </div>
+        </div>
+      </article>
+    </template>
+
+    <template id="historyEntryTemplate">
+      <article class="history-entry">
+        <div class="history-entry-head">
+          <div>
+            <h4 class="history-entry-name"></h4>
+            <p class="history-entry-meta"></p>
+          </div>
+          <div class="history-entry-actions">
+            <button class="small-button load-entry-button" type="button">開く</button>
+            <button class="small-button delete-entry-button" type="button">削除</button>
+          </div>
+        </div>
+        <p class="history-entry-ingredients"></p>
+      </article>
+    </template>
+
+    <script src="./assets/data/food-data.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>
