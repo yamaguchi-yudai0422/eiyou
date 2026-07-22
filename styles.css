@@ -443,9 +443,14 @@ select {
 
 .ingredient-suggestions {
   display: grid;
+  max-height: 224px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 0 8px 8px;
   background: #fffefb;
   border-top: 1px solid var(--line);
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
 }
 
 .ingredient-suggestions[hidden] {

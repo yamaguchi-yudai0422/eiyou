@@ -895,14 +895,7 @@ function renderIngredientCards(dish, ingredientList) {
         const selectSuggestion = () => {
           commitFoodValue(foodInputName(food));
         };
-        button.addEventListener("pointerdown", (event) => {
-          event.preventDefault();
-          selectSuggestion();
-        });
-        button.addEventListener("click", (event) => {
-          if (event.detail !== 0) return;
-          selectSuggestion();
-        });
+        button.addEventListener("click", selectSuggestion);
         suggestions.append(button);
       }
     };
@@ -918,7 +911,13 @@ function renderIngredientCards(dish, ingredientList) {
     quickInput.addEventListener("focus", () => {
       renderQuickSuggestions(quickInput.value);
     });
-    quickInput.addEventListener("change", commitQuickInput);
+    quickInput.addEventListener("blur", () => {
+      requestAnimationFrame(() => {
+        if (!suggestions.contains(document.activeElement)) {
+          suggestions.hidden = true;
+        }
+      });
+    });
     quickInput.addEventListener("keydown", (event) => {
       if (event.isComposing || event.keyCode === 229) return;
       if (event.key === "Enter") {
