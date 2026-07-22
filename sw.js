@@ -1,4 +1,4 @@
-const CACHE_NAME = "nutrition-note-v14";
+const CACHE_NAME = "nutrition-note-v15";
 const APP_ASSETS = [
   "./",
   "./index.html",

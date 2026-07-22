@@ -682,21 +682,10 @@ function renderIngredients() {
     dishCard.addEventListener("pointerdown", markDishActive);
 
     nameInput.addEventListener("input", (event) => {
-      const hadName = Boolean(dish.name.trim());
       dish.name = event.target.value;
       state.activeDishId = dish.id;
-      if (dish.name.trim() && !hadName) {
-        dish.expanded = true;
-        ensureDishIngredientRow(dish);
-        renderIngredients();
-        requestAnimationFrame(() => {
-          const nextInput = dom.dishList.querySelector(
-            `[data-dish-id="${dish.id}"] .dish-name-input`,
-          );
-          nextInput?.focus();
-          nextInput?.setSelectionRange(nextInput.value.length, nextInput.value.length);
-        });
-      } else if (!dish.name.trim()) {
+      if (!dish.name.trim()) {
+        dish.expanded = false;
         dishBody.hidden = true;
         dishToggle.setAttribute("aria-expanded", "false");
         dishChevron.textContent = "⌄";
@@ -706,9 +695,23 @@ function renderIngredients() {
       persistState();
     });
 
+    const commitDishName = () => {
+      if (!dish.name.trim()) return;
+      dish.expanded = true;
+      ensureDishIngredientRow(dish);
+      renderIngredients();
+      renderSummary();
+      persistState();
+    };
+
+    nameInput.addEventListener("change", commitDishName);
+
     nameInput.addEventListener("keydown", (event) => {
+      if (event.isComposing || event.keyCode === 229) return;
       if (event.key !== "Enter" || !dish.name.trim()) return;
       event.preventDefault();
+      dish.expanded = true;
+      ensureDishIngredientRow(dish);
       const dishIndex = state.draft.dishes.findIndex((entry) => entry.id === dish.id);
       let nextDish = state.draft.dishes[dishIndex + 1];
       if (!nextDish) {
@@ -769,6 +772,7 @@ function renderIngredientCards(dish, ingredientList) {
     const summaryDetail = fragment.querySelector(".ingredient-summary-detail");
     const chevron = fragment.querySelector(".ingredient-chevron");
     const quickInput = fragment.querySelector(".ingredient-quick-input");
+    const suggestions = fragment.querySelector(".ingredient-suggestions");
     const foodInput = fragment.querySelector(".food-input");
     const methodSelect = fragment.querySelector(".method-select");
     const methodNote = fragment.querySelector(".method-note");
@@ -859,15 +863,64 @@ function renderIngredientCards(dish, ingredientList) {
     const commitFoodInput = () => commitFoodValue(foodInput.value);
     const commitQuickInput = () => {
       if (!quickInput.value.trim()) return;
+      suggestions.hidden = true;
       commitFoodValue(quickInput.value);
+    };
+
+    const renderQuickSuggestions = (value) => {
+      const query = normalize(value);
+      suggestions.replaceChildren();
+      if (!query || !state.foods.length) {
+        suggestions.hidden = true;
+        return;
+      }
+
+      const foods = rankFoods(query).slice(0, 6);
+      suggestions.hidden = foods.length === 0;
+      for (const food of foods) {
+        const button = document.createElement("button");
+        const name = document.createElement("strong");
+        const detail = document.createElement("small");
+        button.type = "button";
+        button.className = "ingredient-suggestion";
+        button.setAttribute("role", "option");
+        name.textContent = food.displayName || food.officialName;
+        detail.textContent = [
+          food.category,
+          food.displayName ? food.officialName : "",
+        ]
+          .filter(Boolean)
+          .join(" / ");
+        button.append(name, detail);
+        const selectSuggestion = () => {
+          commitFoodValue(foodInputName(food));
+        };
+        button.addEventListener("pointerdown", (event) => {
+          event.preventDefault();
+          selectSuggestion();
+        });
+        button.addEventListener("click", (event) => {
+          if (event.detail !== 0) return;
+          selectSuggestion();
+        });
+        suggestions.append(button);
+      }
     };
 
     quickInput.addEventListener("input", (event) => {
       item.query = event.target.value;
+      if (!event.isComposing) renderQuickSuggestions(event.target.value);
       persistState();
+    });
+    quickInput.addEventListener("compositionend", (event) => {
+      renderQuickSuggestions(event.target.value);
+    });
+    quickInput.addEventListener("focus", () => {
+      renderQuickSuggestions(quickInput.value);
     });
     quickInput.addEventListener("change", commitQuickInput);
     quickInput.addEventListener("keydown", (event) => {
+      if (event.isComposing || event.keyCode === 229) return;
       if (event.key === "Enter") {
         event.preventDefault();
         commitQuickInput();
@@ -889,6 +942,7 @@ function renderIngredientCards(dish, ingredientList) {
 
     foodInput.addEventListener("change", commitFoodInput);
     foodInput.addEventListener("keydown", (event) => {
+      if (event.isComposing || event.keyCode === 229) return;
       if (event.key === "Enter") {
         event.preventDefault();
         commitFoodInput();

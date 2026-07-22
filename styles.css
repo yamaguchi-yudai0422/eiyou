@@ -441,6 +441,53 @@ select {
   background: #fff;
 }
 
+.ingredient-suggestions {
+  display: grid;
+  padding: 0 8px 8px;
+  background: #fffefb;
+  border-top: 1px solid var(--line);
+}
+
+.ingredient-suggestions[hidden] {
+  display: none;
+}
+
+.ingredient-suggestion {
+  display: grid;
+  width: 100%;
+  gap: 2px;
+  padding: 11px 10px;
+  color: var(--text);
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+}
+
+.ingredient-suggestion:last-child {
+  border-bottom: 0;
+}
+
+.ingredient-suggestion strong {
+  font-size: 0.86rem;
+}
+
+.ingredient-suggestion small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.67rem;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ingredient-suggestion:active,
+.ingredient-suggestion:focus-visible {
+  background: var(--green-soft);
+  outline: none;
+}
+
 .ingredient-quick-input {
   width: 100%;
   min-height: 64px;
