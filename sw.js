@@ -1,9 +1,9 @@
-const CACHE_NAME = "nutrition-note-v16";
+const CACHE_NAME = "nutrition-note-v17";
 const APP_ASSETS = [
   "./",
   "./index.html",
-  "./styles.css",
-  "./app.js",
+  "./styles.css?v=17",
+  "./app.js?v=17",
   "./manifest.webmanifest",
   "./assets/icon-192.png",
   "./assets/icon-512.png",
@@ -29,8 +29,16 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
 
+  const shouldRevalidate =
+    event.request.mode === "navigate" ||
+    event.request.destination === "script" ||
+    event.request.destination === "style";
+  const networkRequest = shouldRevalidate
+    ? new Request(event.request, { cache: "no-cache" })
+    : event.request;
+
   event.respondWith(
-    fetch(event.request)
+    fetch(networkRequest)
       .then((response) => {
         const copy = response.clone();
         caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
