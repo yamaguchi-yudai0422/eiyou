@@ -867,6 +867,19 @@ function renderIngredientCards(dish, ingredientList) {
       commitFoodValue(quickInput.value);
     };
 
+    const syncQuickFoodMatch = (value) => {
+      const food = findExactFoodByInput(value);
+      const foodChanged = item.code !== (food?.code || "");
+      item.query = value;
+      item.code = food?.code || "";
+      if (food && foodChanged) {
+        item.amount = food.defaultAmount;
+        item.unitId = food.defaultUnitId;
+      }
+      renderSummary();
+      persistState();
+    };
+
     const renderQuickSuggestions = (value) => {
       const query = normalize(value);
       suggestions.replaceChildren();
@@ -902,11 +915,20 @@ function renderIngredientCards(dish, ingredientList) {
 
     quickInput.addEventListener("input", (event) => {
       item.query = event.target.value;
-      if (!event.isComposing) renderQuickSuggestions(event.target.value);
-      persistState();
+      if (event.isComposing) {
+        if (item.code) {
+          item.code = "";
+          renderSummary();
+        }
+        persistState();
+        return;
+      }
+      renderQuickSuggestions(event.target.value);
+      syncQuickFoodMatch(event.target.value);
     });
     quickInput.addEventListener("compositionend", (event) => {
       renderQuickSuggestions(event.target.value);
+      syncQuickFoodMatch(event.target.value);
     });
     quickInput.addEventListener("focus", () => {
       renderQuickSuggestions(quickInput.value);
@@ -1078,16 +1100,25 @@ function findFoodByInput(value) {
   const query = normalize(value);
   if (!query) return null;
 
-  const exact = state.foods
-    .filter(
-      (food) =>
-        normalize(foodInputName(food)) === query ||
-        normalize(food.officialName) === query ||
-        normalize(food.reading) === query,
-    )
-    .sort((a, b) => Number(b.isCommon) - Number(a.isCommon));
+  return findExactFoodByInput(value) ?? rankFoods(query)[0] ?? null;
+}
 
-  return exact[0] ?? rankFoods(query)[0] ?? null;
+function findExactFoodByInput(value) {
+  const query = normalize(value);
+  if (!query) return null;
+
+  return (
+    state.foods
+      .filter((food) =>
+        [
+          foodInputName(food),
+          food.displayName,
+          food.officialName,
+          ...String(food.reading || "").split(/\s+/),
+        ].some((name) => normalize(name) === query),
+      )
+      .sort((a, b) => Number(b.isCommon) - Number(a.isCommon))[0] ?? null
+  );
 }
 
 function foodInputName(food) {
@@ -1985,7 +2016,7 @@ function setupPwa() {
 
     window.addEventListener("load", async () => {
       try {
-        const registration = await navigator.serviceWorker.register("./sw.js?v=17", {
+        const registration = await navigator.serviceWorker.register("./sw.js?v=18", {
           updateViaCache: "none",
         });
         await registration.update();
