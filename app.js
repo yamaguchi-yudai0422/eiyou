@@ -695,37 +695,26 @@ function renderIngredients() {
       persistState();
     });
 
-    const commitDishName = () => {
+    const commitDishName = (focusMaterial = false) => {
       if (!dish.name.trim()) return;
       dish.expanded = true;
-      ensureDishIngredientRow(dish);
+      const ingredient = ensureDishIngredientRow(dish);
+      state.activeDishId = dish.id;
       renderIngredients();
       renderSummary();
       persistState();
+      if (focusMaterial) {
+        focusIngredientField(dish.id, ingredient.id, ".ingredient-quick-input");
+      }
     };
 
-    nameInput.addEventListener("change", commitDishName);
+    nameInput.addEventListener("change", () => commitDishName());
 
     nameInput.addEventListener("keydown", (event) => {
       if (event.isComposing || event.keyCode === 229) return;
       if (event.key !== "Enter" || !dish.name.trim()) return;
       event.preventDefault();
-      dish.expanded = true;
-      ensureDishIngredientRow(dish);
-      const dishIndex = state.draft.dishes.findIndex((entry) => entry.id === dish.id);
-      let nextDish = state.draft.dishes[dishIndex + 1];
-      if (!nextDish) {
-        nextDish = createBlankDish();
-        state.draft.dishes.push(nextDish);
-      }
-      state.activeDishId = nextDish.id;
-      renderIngredients();
-      persistState();
-      requestAnimationFrame(() => {
-        dom.dishList
-          .querySelector(`[data-dish-id="${nextDish.id}"] .dish-name-input`)
-          ?.focus();
-      });
+      commitDishName(true);
     });
 
     dishToggle.addEventListener("click", () => {
@@ -766,6 +755,7 @@ function renderIngredients() {
 function renderIngredientCards(dish, ingredientList) {
   for (const item of dish.ingredients) {
     const fragment = dom.ingredientTemplate.content.cloneNode(true);
+    const ingredientCard = fragment.querySelector(".ingredient-card");
     const toggleButton = fragment.querySelector(".ingredient-toggle");
     const details = fragment.querySelector(".ingredient-details");
     const summaryName = fragment.querySelector(".ingredient-summary-name");
@@ -785,6 +775,7 @@ function renderIngredientCards(dish, ingredientList) {
     const isBlank = !baseFood && !String(item.query || "").trim();
     const isExpanded = item.expanded === true;
 
+    ingredientCard.dataset.ingredientId = item.id;
     toggleButton.hidden = isBlank;
     quickInput.hidden = !isBlank;
     toggleButton.setAttribute("aria-expanded", String(isExpanded));
@@ -828,7 +819,7 @@ function renderIngredientCards(dish, ingredientList) {
       persistState();
     });
 
-    const commitFoodValue = (value) => {
+    const commitFoodValue = (value, focusAmount = false) => {
       const food = findFoodByInput(value);
       item.query = value.trim();
 
@@ -858,13 +849,16 @@ function renderIngredientCards(dish, ingredientList) {
       renderIngredients();
       renderSummary();
       persistState();
+      if (focusAmount) {
+        focusIngredientField(dish.id, item.id, ".amount-input", true);
+      }
     };
 
     const commitFoodInput = () => commitFoodValue(foodInput.value);
     const commitQuickInput = () => {
       if (!quickInput.value.trim()) return;
       suggestions.hidden = true;
-      commitFoodValue(quickInput.value);
+      commitFoodValue(quickInput.value, true);
     };
 
     const syncQuickFoodMatch = (value) => {
@@ -906,7 +900,7 @@ function renderIngredientCards(dish, ingredientList) {
           .join(" / ");
         button.append(name, detail);
         const selectSuggestion = () => {
-          commitFoodValue(foodInputName(food));
+          commitFoodValue(foodInputName(food), true);
         };
         button.addEventListener("click", selectSuggestion);
         suggestions.append(button);
@@ -984,6 +978,18 @@ function renderIngredientCards(dish, ingredientList) {
       renderSummary();
       persistState();
     });
+    amountInput.addEventListener("keydown", (event) => {
+      if (event.isComposing || event.keyCode === 229) return;
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      item.expanded = false;
+      const nextIngredient = ensureDishIngredientRow(dish);
+      state.activeDishId = dish.id;
+      renderIngredients();
+      renderSummary();
+      persistState();
+      focusIngredientField(dish.id, nextIngredient.id, ".ingredient-quick-input");
+    });
 
     unitSelect.addEventListener("change", (event) => {
       item.unitId = event.target.value;
@@ -1034,12 +1040,34 @@ function ensureDraftStructure() {
 }
 
 function ensureDishIngredientRow(dish) {
-  const hasBlankRow = dish.ingredients.some(
+  let blankRow = dish.ingredients.find(
     (item) => !item.code && !String(item.query || "").trim(),
   );
-  if (!hasBlankRow) {
-    dish.ingredients.push(createBlankIngredient());
+  if (!blankRow) {
+    blankRow = createBlankIngredient();
+    dish.ingredients.push(blankRow);
   }
+  return blankRow;
+}
+
+function focusIngredientField(dishId, ingredientId, selector, selectValue = false) {
+  requestAnimationFrame(() => {
+    const dishCard = [...dom.dishList.querySelectorAll(".dish-card")].find(
+      (card) => card.dataset.dishId === dishId,
+    );
+    const ingredientCard = [...(dishCard?.querySelectorAll(".ingredient-card") || [])].find(
+      (card) => card.dataset.ingredientId === ingredientId,
+    );
+    const field = ingredientCard?.querySelector(selector);
+    field?.focus();
+    if (selectValue && typeof field?.select === "function") {
+      try {
+        field.select();
+      } catch {
+        // Some mobile number inputs do not expose text selection.
+      }
+    }
+  });
 }
 
 function getActiveDish() {
@@ -2016,7 +2044,7 @@ function setupPwa() {
 
     window.addEventListener("load", async () => {
       try {
-        const registration = await navigator.serviceWorker.register("./sw.js?v=18", {
+        const registration = await navigator.serviceWorker.register("./sw.js?v=19", {
           updateViaCache: "none",
         });
         await registration.update();

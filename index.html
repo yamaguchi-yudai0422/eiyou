@@ -8,7 +8,7 @@
     <title>栄養計算アプリ</title>
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="apple-touch-icon" href="./assets/icon-192.png" />
-    <link rel="stylesheet" href="./styles.css?v=18" />
+    <link rel="stylesheet" href="./styles.css?v=19" />
   </head>
   <body>
     <div class="app-shell">
@@ -208,6 +208,7 @@
             type="text"
             placeholder="料理名を書く"
             autocomplete="off"
+            enterkeyhint="next"
             aria-label="料理名"
           />
           <button class="dish-toggle" type="button" aria-expanded="false" aria-label="材料を開閉">
@@ -255,6 +256,7 @@
             type="search"
             placeholder="材料名を入力"
             autocomplete="off"
+            enterkeyhint="next"
           />
           <div class="ingredient-suggestions" role="listbox" hidden></div>
         </div>
@@ -282,7 +284,14 @@
             </label>
             <label class="field compact">
               <span>数量</span>
-              <input class="amount-input" type="number" min="0" step="0.1" />
+              <input
+                class="amount-input"
+                type="number"
+                min="0"
+                step="0.1"
+                inputmode="decimal"
+                enterkeyhint="next"
+              />
             </label>
             <label class="field compact">
               <span>単位</span>
@@ -318,6 +327,6 @@
     </template>
 
     <script src="./assets/data/food-data.js"></script>
-    <script src="./app.js?v=18"></script>
+    <script src="./app.js?v=19"></script>
   </body>
 </html>
