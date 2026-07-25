@@ -1,9 +1,9 @@
-const CACHE_NAME = "nutrition-note-v21";
+const CACHE_NAME = "nutrition-note-v22";
 const APP_ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=21",
-  "./app.js?v=21",
+  "./styles.css?v=22",
+  "./app.js?v=22",
   "./manifest.webmanifest",
   "./assets/icon-192.png",
   "./assets/icon-512.png",

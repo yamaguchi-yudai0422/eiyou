@@ -935,6 +935,18 @@ function renderIngredientCards(dish, ingredientList) {
       }
     };
 
+    let suggestionGestureActive = false;
+    suggestions.addEventListener("pointerdown", () => {
+      suggestionGestureActive = true;
+    });
+    const finishSuggestionGesture = () => {
+      window.setTimeout(() => {
+        suggestionGestureActive = false;
+      }, 300);
+    };
+    suggestions.addEventListener("pointerup", finishSuggestionGesture);
+    suggestions.addEventListener("pointercancel", finishSuggestionGesture);
+
     quickInput.addEventListener("input", (event) => {
       item.query = event.target.value;
       if (event.isComposing) {
@@ -956,11 +968,13 @@ function renderIngredientCards(dish, ingredientList) {
       renderQuickSuggestions(quickInput.value);
     });
     quickInput.addEventListener("blur", () => {
-      requestAnimationFrame(() => {
-        if (!suggestions.contains(document.activeElement)) {
-          suggestions.hidden = true;
-        }
-      });
+      window.setTimeout(() => {
+        if (!quickInput.isConnected || suggestionGestureActive) return;
+        if (suggestions.contains(document.activeElement)) return;
+        suggestions.hidden = true;
+        const food = findExactFoodByInput(quickInput.value);
+        if (food) commitFoodValue(foodInputName(food), true);
+      }, 120);
     });
     quickInput.addEventListener("keydown", (event) => {
       if (event.isComposing || event.keyCode === 229) return;
@@ -2187,7 +2201,7 @@ function setupPwa() {
 
     window.addEventListener("load", async () => {
       try {
-        const registration = await navigator.serviceWorker.register("./sw.js?v=21", {
+        const registration = await navigator.serviceWorker.register("./sw.js?v=22", {
           updateViaCache: "none",
         });
         await registration.update();
