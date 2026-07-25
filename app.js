@@ -2187,7 +2187,7 @@ function setupPwa() {
 
     window.addEventListener("load", async () => {
       try {
-        const registration = await navigator.serviceWorker.register("./sw.js?v=20", {
+        const registration = await navigator.serviceWorker.register("./sw.js?v=21", {
           updateViaCache: "none",
         });
         await registration.update();
