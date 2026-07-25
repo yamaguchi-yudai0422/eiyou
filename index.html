@@ -8,7 +8,7 @@
     <title>栄養計算アプリ</title>
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="apple-touch-icon" href="./assets/icon-192.png" />
-    <link rel="stylesheet" href="./styles.css?v=19" />
+    <link rel="stylesheet" href="./styles.css?v=20" />
   </head>
   <body>
     <div class="app-shell">
@@ -34,6 +34,7 @@
                 <button class="meal-tab is-active" type="button" data-meal="breakfast">朝</button>
                 <button class="meal-tab" type="button" data-meal="lunch">昼</button>
                 <button class="meal-tab" type="button" data-meal="dinner">夜</button>
+                <button class="meal-tab" type="button" data-meal="snack">間食</button>
               </div>
             </div>
           </div>
@@ -42,8 +43,8 @@
 
           <div class="dish-editor-heading">
             <div>
-              <span>料理</span>
-              <small>料理名を入力してEnterで次の料理へ</small>
+              <span id="dishEditorTitle">料理</span>
+              <small id="dishEditorHint">料理名を入力してEnterで材料へ</small>
             </div>
           </div>
 
@@ -327,6 +328,6 @@
     </template>
 
     <script src="./assets/data/food-data.js"></script>
-    <script src="./app.js?v=19"></script>
+    <script src="./app.js?v=20"></script>
   </body>
 </html>

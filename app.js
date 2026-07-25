@@ -44,6 +44,7 @@ const MEALS = [
   { key: "breakfast", label: "朝" },
   { key: "lunch", label: "昼" },
   { key: "dinner", label: "夜" },
+  { key: "snack", label: "間食" },
 ];
 const COOKING_METHODS = [
   { id: "", label: "指定なし", keywords: [] },
@@ -52,7 +53,8 @@ const COOKING_METHODS = [
   { id: "boiled", label: "ゆで", keywords: ["ゆで", "茹で"] },
   { id: "simmered", label: "煮る", keywords: ["水煮", "煮"] },
   { id: "steamed", label: "蒸し", keywords: ["蒸し"] },
-  { id: "stir-fried", label: "炒め", keywords: ["炒め"] },
+  { id: "microwaved", label: "電子レンジ", keywords: ["電子レンジ調理"] },
+  { id: "stir-fried", label: "炒め", keywords: ["炒め", "油いため"] },
   { id: "fried", label: "揚げ・フライ", keywords: ["揚げ", "フライ"] },
 ];
 const DAILY_TARGET_DEFINITIONS = [
@@ -93,6 +95,7 @@ const unitsById = new Map(UNITS.map((unit) => [unit.id, unit]));
 const state = {
   foods: [],
   foodsByCode: new Map(),
+  ingredientGroupKeys: new Map(),
   query: "",
   nutritionTab: "overview",
   activeDishId: "",
@@ -125,6 +128,8 @@ const dom = {
   actionMessage: document.querySelector("#actionMessage"),
   dishList: document.querySelector("#dishList"),
   dishEmpty: document.querySelector("#dishEmpty"),
+  dishEditorTitle: document.querySelector("#dishEditorTitle"),
+  dishEditorHint: document.querySelector("#dishEditorHint"),
   recipeTools: document.querySelector("#recipeTools"),
   templateSelect: document.querySelector("#templateSelect"),
   applyTemplateButton: document.querySelector("#applyTemplateButton"),
@@ -190,6 +195,7 @@ async function boot() {
   try {
     state.foods = await loadFoods();
     state.foodsByCode = new Map(state.foods.map((food) => [food.code, food]));
+    state.ingredientGroupKeys = buildIngredientGroupKeys(state.foods);
     for (const dish of state.draft.dishes) {
       dish.ingredients = dish.ingredients.filter(
         (item) => !item.code || state.foodsByCode.has(item.code),
@@ -471,6 +477,10 @@ function renderMealTabs() {
 }
 
 function renderRecipeToolsVisibility() {
+  if (state.draft.mealType === "snack") {
+    dom.recipeTools.hidden = true;
+    return;
+  }
   dom.recipeTools.hidden =
     state.templates.length === 0 &&
     !state.draft.dishes.some((dish) => dish.name.trim());
@@ -596,7 +606,7 @@ function renderSearchResults() {
     return;
   }
 
-  const results = rankFoods(query).slice(0, 20);
+  const results = rankIngredientFoods(query).slice(0, 20);
   dom.searchHint.textContent = `${results.length} 件表示中`;
 
   for (const food of results) {
@@ -605,10 +615,8 @@ function renderSearchResults() {
 
     const info = document.createElement("div");
     info.innerHTML = `
-      <p class="result-title">${escapeHtml(food.displayName || food.officialName)}</p>
-      <p class="result-meta">${escapeHtml(
-        [food.category, food.displayName ? food.officialName : "", food.reading].filter(Boolean).join(" / "),
-      )}</p>
+      <p class="result-title">${escapeHtml(ingredientCandidateName(food))}</p>
+      <p class="result-meta">${escapeHtml(food.category)}</p>
     `;
 
     const button = document.createElement("button");
@@ -642,6 +650,12 @@ function addIngredientFromFood(food) {
 
 function renderIngredients() {
   ensureDraftStructure();
+  const isSnack = state.draft.mealType === "snack";
+  dom.dishList.classList.toggle("is-snack-mode", isSnack);
+  dom.dishEditorTitle.textContent = isSnack ? "間食" : "料理";
+  dom.dishEditorHint.textContent = isSnack
+    ? "おやつ・飲み物と量を入力"
+    : "料理名を入力してEnterで材料へ";
   dom.dishList.innerHTML = "";
   dom.dishEmpty.hidden = state.draft.dishes.length > 0;
 
@@ -656,6 +670,8 @@ function renderIngredients() {
     const dishServingsInput = dishFragment.querySelector(".dish-servings-input");
     const ingredientEmpty = dishFragment.querySelector(".dish-ingredient-empty");
     const ingredientList = dishFragment.querySelector(".ingredient-list");
+    const materialsTitle = dishFragment.querySelector(".dish-materials-heading strong");
+    const materialsHint = dishFragment.querySelector(".dish-materials-heading small");
     const deleteDishButton = dishFragment.querySelector(".delete-dish-button");
     const hasName = Boolean(dish.name.trim());
     if (hasName) ensureDishIngredientRow(dish);
@@ -670,6 +686,10 @@ function renderIngredients() {
     dishChevron.textContent = isOpen ? "⌃" : "⌄";
     dishBody.hidden = !isOpen;
     dishServingsInput.value = String(dish.servings);
+    if (isSnack) {
+      materialsTitle.textContent = "おやつ・飲み物";
+      materialsHint.textContent = "食品を選ぶと次の入力欄が増えます";
+    }
 
     const markDishActive = () => {
       state.activeDishId = dish.id;
@@ -771,6 +791,7 @@ function renderIngredientCards(dish, ingredientList) {
     const gramsValue = fragment.querySelector(".grams-value");
     const energyValue = fragment.querySelector(".energy-value");
     const deleteButton = fragment.querySelector(".delete-button");
+    const settingsTitle = fragment.querySelector(".ingredient-head strong");
     const baseFood = state.foodsByCode.get(item.code);
     const isBlank = !baseFood && !String(item.query || "").trim();
     const isExpanded = item.expanded === true;
@@ -793,8 +814,16 @@ function renderIngredientCards(dish, ingredientList) {
     quickInput.value = item.query || "";
     foodInput.value = item.query || (baseFood ? foodInputName(baseFood) : "");
     amountInput.value = String(item.amount);
+    quickInput.placeholder =
+      state.draft.mealType === "snack" ? "おやつ・飲み物を入力" : "材料名を入力";
+    settingsTitle.textContent =
+      state.draft.mealType === "snack" ? "食品の設定" : "材料の設定";
 
-    for (const method of COOKING_METHODS) {
+    const cookingMethods = availableCookingMethods(baseFood);
+    if (!cookingMethods.some((method) => method.id === item.method)) {
+      item.method = "";
+    }
+    for (const method of cookingMethods) {
       const option = document.createElement("option");
       option.value = method.id;
       option.textContent = method.label;
@@ -845,6 +874,9 @@ function renderIngredientCards(dish, ingredientList) {
       if (foodChanged) {
         item.amount = food.defaultAmount;
         item.unitId = food.defaultUnitId;
+        if (!availableCookingMethods(food).some((method) => method.id === item.method)) {
+          item.method = "";
+        }
       }
       renderIngredients();
       renderSummary();
@@ -869,6 +901,9 @@ function renderIngredientCards(dish, ingredientList) {
       if (food && foodChanged) {
         item.amount = food.defaultAmount;
         item.unitId = food.defaultUnitId;
+        if (!availableCookingMethods(food).some((method) => method.id === item.method)) {
+          item.method = "";
+        }
       }
       renderSummary();
       persistState();
@@ -882,23 +917,16 @@ function renderIngredientCards(dish, ingredientList) {
         return;
       }
 
-      const foods = rankFoods(query).slice(0, 6);
+      const foods = rankIngredientFoods(query).slice(0, 6);
       suggestions.hidden = foods.length === 0;
       for (const food of foods) {
         const button = document.createElement("button");
         const name = document.createElement("strong");
-        const detail = document.createElement("small");
         button.type = "button";
         button.className = "ingredient-suggestion";
         button.setAttribute("role", "option");
-        name.textContent = food.displayName || food.officialName;
-        detail.textContent = [
-          food.category,
-          food.displayName ? food.officialName : "",
-        ]
-          .filter(Boolean)
-          .join(" / ");
-        button.append(name, detail);
+        name.textContent = ingredientCandidateName(food);
+        button.append(name);
         const selectSuggestion = () => {
           commitFoodValue(foodInputName(food), true);
         };
@@ -1019,9 +1047,37 @@ function createBlankDish() {
   };
 }
 
+function createSnackDish() {
+  return {
+    id: makeId(),
+    name: "間食",
+    servings: 1,
+    expanded: true,
+    ingredients: [],
+  };
+}
+
 function ensureDraftStructure() {
   if (!Array.isArray(state.draft.dishes)) {
     state.draft.dishes = [];
+  }
+  if (state.draft.mealType === "snack") {
+    const primary =
+      state.draft.dishes.find((dish) =>
+        dish.ingredients.some((item) => item.code || String(item.query || "").trim()),
+      ) ?? state.draft.dishes[0] ?? createSnackDish();
+    const extraIngredients = state.draft.dishes
+      .filter((dish) => dish !== primary)
+      .flatMap((dish) => dish.ingredients)
+      .filter((item) => item.code || String(item.query || "").trim());
+    primary.name = "間食";
+    primary.servings = 1;
+    primary.expanded = true;
+    primary.ingredients.push(...extraIngredients);
+    state.draft.dishes = [primary];
+    ensureDishIngredientRow(primary);
+    state.activeDishId = primary.id;
+    return;
   }
   if (!state.draft.dishes.length) {
     state.draft.dishes.push(createBlankDish());
@@ -1108,13 +1164,11 @@ function ingredientSummaryDetail(item) {
 
 function renderFoodOptions() {
   dom.foodOptions.innerHTML = "";
-  const sorted = [...state.foods].sort(
-    (a, b) => Number(b.isCommon) - Number(a.isCommon) || compareNames(a, b),
-  );
+  const sorted = rankIngredientFoods("");
   const seen = new Set();
 
   for (const food of sorted) {
-    const value = foodInputName(food);
+    const value = ingredientCandidateName(food);
     if (seen.has(value)) continue;
     seen.add(value);
 
@@ -1128,7 +1182,7 @@ function findFoodByInput(value) {
   const query = normalize(value);
   if (!query) return null;
 
-  return findExactFoodByInput(value) ?? rankFoods(query)[0] ?? null;
+  return findExactFoodByInput(value) ?? rankIngredientFoods(query)[0] ?? null;
 }
 
 function findExactFoodByInput(value) {
@@ -1158,7 +1212,7 @@ function shortMaterialName(name) {
     .replace(/［[^］]+］/g, "")
     .replace(/\[[^\]]+\]/g, "")
     .replace(
-      /\s+(油いため|塩焼き|水煮|焼き|ゆで|茹で|蒸し|炒め|フライ|揚げ|生)$/u,
+      /\s+(電子レンジ調理|フライドポテト|油いため|素揚げ|塩焼き|水煮|焼き|ゆで|茹で|蒸し|炒め|フライ|揚げ|煮|生)(?:\s.*)?$/u,
       "",
     )
     .replace(/\s+/g, " ")
@@ -1210,6 +1264,17 @@ function resolveFoodForItem(item) {
   const method = COOKING_METHODS.find((entry) => entry.id === item.method);
   if (!method) return baseFood;
 
+  return findFoodForMethod(baseFood, method) ?? baseFood;
+}
+
+function availableCookingMethods(baseFood) {
+  if (!baseFood) return [COOKING_METHODS[0]];
+  return COOKING_METHODS.filter(
+    (method) => !method.id || Boolean(findFoodForMethod(baseFood, method)),
+  );
+}
+
+function findFoodForMethod(baseFood, method) {
   const family = foodFamilyName(baseFood);
   const candidates = state.foods.filter((food) => {
     const officialName = normalize(food.officialName);
@@ -1220,26 +1285,49 @@ function resolveFoodForItem(item) {
     );
   });
 
-  return candidates[0] ?? baseFood;
+  return candidates[0] ?? null;
 }
 
 function foodFamilyName(food) {
-  let name = normalize(food.officialName);
-  for (const word of ["水煮", "焼き", "ゆで", "茹で", "蒸し", "炒め", "フライ", "揚げ", "煮", "生"]) {
-    name = name.replaceAll(normalize(word), "");
-  }
-  return name;
+  const preparationWords = new Set([
+    "電子レンジ調理",
+    "フライドポテト",
+    "油いため",
+    "素揚げ",
+    "塩焼き",
+    "水煮",
+    "焼き",
+    "ゆで",
+    "茹で",
+    "蒸し",
+    "炒め",
+    "フライ",
+    "揚げ",
+    "煮",
+    "生",
+  ].map(normalize));
+  return normalizeKanaSpacing(cleanOfficialFoodName(food.officialName))
+    .split(" ")
+    .filter((word) => !preparationWords.has(normalize(word)))
+    .join("");
 }
 
 function renderSummary() {
   const totals = computeTotals(allDraftIngredients());
   const perServing = computePerPersonTotals(state.draft.dishes);
+  const isSnack = state.draft.mealType === "snack";
 
   dom.summaryTitle.textContent = "栄養価";
-  const names = draftDishNames();
+  const names = isSnack
+    ? allDraftIngredients()
+        .map((item) => state.foodsByCode.get(item.code))
+        .filter(Boolean)
+        .map(ingredientCandidateName)
+    : draftDishNames();
   dom.summaryMealMeta.textContent =
-    `${names.length ? names.join("・") : "料理名未入力"} / ` +
-    `${formatMealLabel(state.draft.mealType)} / ${formatDateLabel(state.draft.date)} / 料理ごとに人数設定`;
+    `${names.length ? names.join("・") : isSnack ? "間食未入力" : "料理名未入力"} / ` +
+    `${formatMealLabel(state.draft.mealType)} / ${formatDateLabel(state.draft.date)} / ` +
+    `${isSnack ? "1人分" : "料理ごとに人数設定"}`;
   dom.totalEnergy.textContent = `${formatValue("energy", totals.energy)} kcal`;
   dom.perServingEnergy.textContent = `${formatValue("energy", perServing.energy)} kcal`;
   dom.totalMainGrid.innerHTML = buildMetricGrid(totals);
@@ -1583,7 +1671,13 @@ function saveCurrentMeal() {
   );
   const ingredients = dishes.flatMap((dish) => dish.ingredients);
   const recipeName =
-    dishes.map((dish) => dish.name.trim()).filter(Boolean).join("・") || "名前なしの料理";
+    state.draft.mealType === "snack"
+      ? ingredients
+          .map((item) => state.foodsByCode.get(item.code))
+          .filter(Boolean)
+          .map(ingredientCandidateName)
+          .join("・") || "間食"
+      : dishes.map((dish) => dish.name.trim()).filter(Boolean).join("・") || "名前なしの料理";
   if (!ingredients.some((item) => item.code)) {
     dom.dataStatus.textContent = "材料を1つ以上追加してください";
     return;
@@ -1657,13 +1751,11 @@ function deleteSavedEntry(date, mealType, entryId) {
 }
 
 function dayMeals(date) {
-  return (
-    state.savedMeals[date] ?? {
-      breakfast: [],
-      lunch: [],
-      dinner: [],
-    }
-  );
+  const day = state.savedMeals[date] ?? {};
+  for (const meal of MEALS) {
+    if (!Array.isArray(day[meal.key])) day[meal.key] = [];
+  }
+  return day;
 }
 
 function availableUnitsForFood(food) {
@@ -1718,6 +1810,45 @@ function rankFoods(query) {
     .map((entry) => entry.food);
 }
 
+function rankIngredientFoods(query) {
+  const seen = new Set();
+  return rankFoods(query).filter((food) => {
+    const key = state.ingredientGroupKeys.get(food.code) ?? `${food.category}:${foodFamilyName(food)}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function buildIngredientGroupKeys(foods) {
+  const commonFoods = foods.filter((food) => food.isCommon && food.displayName);
+  return new Map(
+    foods.map((food) => {
+      const officialName = normalizeKanaSpacing(cleanOfficialFoodName(food.officialName));
+      const common = commonFoods.find((candidate) => {
+        if (candidate.category !== food.category) return false;
+        const displayName = normalizeKanaSpacing(candidate.displayName);
+        return officialName === displayName || officialName.startsWith(`${displayName} `);
+      });
+      const key = common
+        ? `${food.category}:common:${normalize(common.displayName)}`
+        : `${food.category}:family:${foodFamilyName(food)}`;
+      return [food.code, key];
+    }),
+  );
+}
+
+function ingredientCandidateName(food) {
+  const key = state.ingredientGroupKeys.get(food.code);
+  const common = key
+    ? state.foods.find(
+        (candidate) =>
+          candidate.isCommon && state.ingredientGroupKeys.get(candidate.code) === key,
+      )
+    : null;
+  return common?.displayName || food.displayName || shortMaterialName(food.officialName);
+}
+
 function searchScore(food, query) {
   if (!query) {
     return food.isCommon ? 100 : 10;
@@ -1729,13 +1860,13 @@ function searchScore(food, query) {
   const category = normalize(food.category);
 
   let score = 0;
-  if (food.isCommon) score += 20;
   if (primary.startsWith(query)) score += 120;
   if (primary.includes(query)) score += 90;
   if (reading.startsWith(query)) score += 100;
   if (reading.includes(query)) score += 75;
   if (official.includes(query)) score += 40;
   if (category.includes(query)) score += 20;
+  if (score > 0 && food.isCommon) score += 20;
   return score;
 }
 
@@ -1751,6 +1882,17 @@ function normalize(text) {
       String.fromCharCode(character.charCodeAt(0) - 0x60),
     )
     .replace(/\s+/g, "");
+}
+
+function normalizeKanaSpacing(text) {
+  return String(text ?? "")
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[\u30a1-\u30f6]/g, (character) =>
+      String.fromCharCode(character.charCodeAt(0) - 0x60),
+    )
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function formatValue(key, value) {
@@ -1987,6 +2129,7 @@ function sanitizeSavedMeals() {
       breakfast: sanitizeSavedEntryList(meals.breakfast),
       lunch: sanitizeSavedEntryList(meals.lunch),
       dinner: sanitizeSavedEntryList(meals.dinner),
+      snack: sanitizeSavedEntryList(meals.snack),
     };
   }
   state.savedMeals = next;
@@ -2044,7 +2187,7 @@ function setupPwa() {
 
     window.addEventListener("load", async () => {
       try {
-        const registration = await navigator.serviceWorker.register("./sw.js?v=19", {
+        const registration = await navigator.serviceWorker.register("./sw.js?v=20", {
           updateViaCache: "none",
         });
         await registration.update();

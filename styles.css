@@ -132,7 +132,7 @@ select {
 
 .meal-tabs {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 6px;
   padding: 5px;
   background: var(--green-soft);
@@ -148,6 +148,20 @@ select {
   border-radius: 12px;
   font-weight: 700;
   cursor: pointer;
+}
+
+.dish-list.is-snack-mode .dish-name-row,
+.dish-list.is-snack-mode .dish-servings-field,
+.dish-list.is-snack-mode .delete-dish-button {
+  display: none;
+}
+
+.dish-list.is-snack-mode .dish-card {
+  padding-top: 0;
+}
+
+.dish-list.is-snack-mode .dish-body {
+  padding-top: 14px;
 }
 
 .meal-tab.is-active {
